@@ -95,7 +95,7 @@ class AlovaLikeClient {
 
 // 创建 API 客户端实例
 const apiClient = new AlovaLikeClient({
-  baseURL: process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3002',
+  baseURL: process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000',
   timeout: 10000, // 10秒超时
   headers: {
     'Content-Type': 'application/json',
