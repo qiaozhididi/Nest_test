@@ -1,1 +1,89 @@
 node_modules
+# 屏蔽._开头的文件
+._*
+# 操作系统相关
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE/编辑器相关
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 日志文件
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 构建产物
+dist/
+build/
+out/
+.next/
+.nuxt/
+.cache/
+.parcel-cache/
+
+# 环境变量
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 依赖锁文件（根据团队规范可选）
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# 测试覆盖
+coverage/
+.nyc_output/
+
+# 临时文件
+*.tmp
+*.temp
+*.pid
+*.seed
+*.pid.lock
+
+# 数据库
+*.sqlite
+*.db
+
+# 证书密钥
+*.pem
+*.key
+*.crt
+
+# 备份
+*.bak
+*.backup
+
+# Next.js 构建产物
+.next/
+out/
+
+# Vercel
+.vercel
+
+# 静态导出
+/export/
+
+# 服务端构建
+/.next/server/
+/.next/static/
+
+# 缓存
+*.tsbuildinfo
+.next/cache/
+
+
+
+
