@@ -1,6 +1,7 @@
 'use client'
 
 import { authService } from '@/services/authService'
+import ChatRoom from './ChatRoom'
 
 interface User {
   id: string
@@ -41,7 +42,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
       </div>
 
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
+        <div className="px-4 py-6 sm:px-0 space-y-6">
           <div className="bg-white overflow-hidden shadow rounded-lg">
             <div className="px-4 py-5 sm:p-6">
               <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
@@ -64,14 +65,23 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
             </div>
           </div>
 
-          <div className="mt-6 bg-white overflow-hidden shadow rounded-lg">
+          <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="px-4 py-5 sm:p-6">
+              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                实时聊天
+              </h3>
+              <ChatRoom user={user} />
+            </div>
+          </div>
+
+          <div className="bg-white overflow-hidden shadow rounded-lg">
             <div className="px-4 py-5 sm:p-6">
               <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
                 系统功能
               </h3>
               <p className="text-sm text-gray-600">
                 这是一个基于 Next.js 和 MongoDB 的登录注册系统演示。
-                您已经成功登录，可以在这里添加更多的应用功能。
+                您已经成功登录，并可以使用局域网实时聊天功能。
               </p>
             </div>
           </div>
