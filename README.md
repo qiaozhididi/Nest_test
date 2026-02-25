@@ -1,132 +1,71 @@
-# Nest Test - 登录注册系统
+# Nest Test - 登录注册与实时聊天系统
 
-基于 Next.js 14 和 MongoDB 的现代化登录注册系统。
+基于 Next.js 14、Socket.io 和 MongoDB 的现代化全栈演示系统。
 
 ## 功能特性
 
-- ✅ 用户注册
-- ✅ 用户登录
-- ✅ JWT 身份验证
-- ✅ 密码加密 (bcrypt)
-- ✅ MongoDB 数据存储
-- ✅ 响应式界面 (Tailwind CSS)
-- ✅ TypeScript 支持
-- ✅ Axios HTTP 客户端封装
-- ✅ 统一错误处理
-- ✅ 请求/响应拦截器
+- ✅ **用户认证**: 注册、登录、JWT 身份验证
+- ✅ **安全加固**: 密码使用 `bcrypt` 加密，聊天记录使用 `AES` 加密存储
+- ✅ **实时聊天**: 基于 Socket.io 的局域网实时聊天室
+- ✅ **历史记录**: 自动加载并解密显示最近 100 条聊天记录
+- ✅ **数据库支持**: 使用 MongoDB 存储用户信息和加密聊天数据
+- ✅ **响应式界面**: 使用 Tailwind CSS 构建的现代化 UI
+- ✅ **局域网支持**: 支持通过本机 IP 供局域网内其他设备访问
 
 ## 技术栈
 
-- **前端**: Next.js 14, React 18, TypeScript, Tailwind CSS
-- **后端**: Next.js API Routes
+- **前端**: Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS
+- **后端**: Next.js API Routes, Socket.io (Pages API)
 - **数据库**: MongoDB
-- **身份验证**: JWT, bcryptjs
+- **安全性**: JWT, bcryptjs, crypto-js (AES-256)
 - **HTTP 客户端**: Axios
-- **样式**: Tailwind CSS
 
-## API 接口
+## 核心功能说明
 
-### 注册接口
-```
-POST /api/Register
-Content-Type: application/json
+### 1. 实时聊天 (Socket.io)
+- 服务端位于 `src/pages/api/socket.ts`，利用 Next.js 的 Pages API 路由实现。
+- 客户端在 `src/components/ChatRoom.tsx` 中建立连接并进行消息收发。
 
-{
-  "username": "用户名",
-  "email": "邮箱",
-  "password": "密码"
-}
-```
+### 2. 聊天加密 (AES)
+- 所有聊天消息在存入数据库前都会通过 `CryptoJS` 进行 AES 加密。
+- 密钥由环境变量 `CHAT_ENCRYPTION_KEY` 控制。
+- 只有通过应用程序界面登录的用户才能解密并查看内容，直接查看数据库看到的是加密后的密文。
 
-### 登录接口
-```
-POST /api/Login
-Content-Type: application/json
+## 环境配置
 
-{
-  "username": "用户名或邮箱",
-  "password": "密码"
-}
-```
-
-## 数据库配置
-
-MongoDB 连接配置：
-- 服务器地址: 192.168.1.3
-- 用户名: qzfrato
-- 密码: root
-- 数据库名: nest_test_db
-
-## 环境变量
-
-在 `.env.local` 文件中配置：
+在 `.env.local` 文件中配置以下变量：
 
 ```env
-JWT_SECRET=your-super-secret-jwt-key-here
-MONGODB_URI=mongodb://qzfrato:root@192.168.1.3:27017
-DB_NAME=nest_test_db
+JWT_SECRET=your-jwt-secret-key
+MONGODB_URI=mongodb://username:password@host:port/dbname?authSource=admin
+DB_NAME=MongoTest
+CHAT_ENCRYPTION_KEY=your-chat-encryption-secret-key
 ```
 
-## 安装和运行
+## 安装与运行
 
-1. 安装依赖：
-```bash
-npm install
-```
+1. **安装依赖**：
+   ```bash
+   npm install
+   ```
 
-2. 启动开发服务器：
-```bash
-npm run dev
-```
+2. **开发模式运行**：
+   ```bash
+   npm run dev
+   ```
 
-3. 访问应用：
-打开浏览器访问 [http://localhost:3000](http://localhost:3000)
+3. **局域网共享模式运行**（推荐用于聊天测试）：
+   ```bash
+   npm run dev:network
+   ```
+   *启动后，局域网内的用户可以通过访问 `http://你的IP:3001` 进行协作。*
 
-## Axios HTTP 客户端封装
+## API 接口概览
 
-项目使用 Axios 进行 HTTP 请求，提供统一的错误处理和拦截器功能：
-
-### API 客户端配置 (`src/lib/apiClient.ts`)
-- 自动添加 Authorization header
-- 请求/响应日志记录
-- 401 错误自动登出
-- 10秒请求超时
-
-### 认证服务 (`src/services/authService.ts`)
-提供以下方法：
-- `login(data)` - 用户登录
-- `register(data)` - 用户注册  
-- `logout()` - 退出登录
-- `getCurrentUser()` - 获取当前用户
-- `isAuthenticated()` - 检查登录状态
-
-### 使用示例
-```typescript
-import { authService } from '@/services/authService'
-
-// 登录
-try {
-  const response = await authService.login({
-    username: 'user@example.com',
-    password: 'password123'
-  })
-  console.log('登录成功:', response.user)
-} catch (error) {
-  console.error('登录失败:', error.message)
-}
-
-// 注册
-try {
-  const response = await authService.register({
-    username: 'newuser',
-    email: 'user@example.com',
-    password: 'password123'
-  })
-  console.log('注册成功:', response.message)
-} catch (error) {
-  console.error('注册失败:', error.message)
-}
-```
+- `POST /api/Register`: 用户注册
+- `POST /api/Login`: 用户登录
+- `GET /api/ChatHistory`: 获取解密后的聊天历史记录
+- `GET /api/socket`: 初始化 Socket.io 服务端连接
 
 ## 项目结构
 
@@ -134,32 +73,29 @@ try {
 src/
 ├── app/
 │   ├── api/
-│   │   ├── Login/route.ts      # 登录API
-│   │   └── Register/route.ts   # 注册API
-│   ├── layout.tsx              # 页面布局
-│   ├── page.tsx                # 主页面
-│   └── globals.css             # 全局样式
+│   │   ├── Login/      # 登录 API
+│   │   ├── Register/   # 注册 API
+│   │   └── ChatHistory/# 聊天记录获取与解密
+│   └── ...
 ├── components/
-│   ├── LoginForm.tsx           # 登录表单
-│   ├── RegisterForm.tsx        # 注册表单
-│   └── Dashboard.tsx           # 用户仪表板
+│   ├── ChatRoom.tsx    # 聊天室核心组件
+│   ├── Dashboard.tsx   # 用户面板（集成聊天室）
+│   └── ...
 ├── lib/
-│   ├── mongodb.ts              # MongoDB连接
-│   ├── auth.ts                 # 身份验证工具
-│   └── apiClient.ts            # Axios客户端配置
-├── services/
-│   └── authService.ts          # 认证服务封装
+│   ├── encryption.ts   # AES 加密/解密工具
+│   ├── mongodb.ts      # 数据库连接
+│   └── ...
+├── pages/
+│   └── api/
+│       └── socket.ts   # Socket.io 服务端逻辑
 └── types/
-    └── user.ts                 # 用户类型定义
+    ├── chat.ts         # 聊天数据类型定义
+    └── user.ts         # 用户数据类型定义
 ```
 
-## 安全特性
+## 安全建议
 
-- 密码使用 bcrypt 加密存储
-- JWT token 用于身份验证
-- 输入验证和错误处理
-- MongoDB 连接池管理
-
-## 开发说明
-
-这是一个演示项目，展示了如何使用 Next.js 构建完整的用户认证系统。可以根据实际需求进行扩展和定制。
+- 本项目仅作为功能演示，在生产环境中请确保：
+  - 使用更复杂的 `JWT_SECRET` 和 `CHAT_ENCRYPTION_KEY`。
+  - 启用 HTTPS 传输。
+  - 完善数据库的访问控制权限。
