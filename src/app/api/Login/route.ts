@@ -35,6 +35,7 @@ export async function POST(request: NextRequest) {
     const isPasswordValid = await verifyPassword(password, user.password);
 
     if (!isPasswordValid) {
+      console.log('密码验证失败:', { username, passwordLength: password.length });
       return NextResponse.json(
         { error: ErrorMessages.WRONG_PASSWORD },
         { status: 401 }

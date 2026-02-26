@@ -45,15 +45,22 @@ class AlovaLikeClient {
       console.log('API响应:', response.status, url);
 
       if (!response.ok) {
+        // 获取错误数据
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || `HTTP ${response.status}`;
+
         // 处理 401 未授权错误
         if (response.status === 401) {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          window.location.href = '/';
+          console.warn('收到 401 未授权错误，清除本地存储:', errorMessage);
+          // 仅在非登录接口时自动重定向
+          if (!url.includes('/api/Login')) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/';
+          }
         }
 
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
+        throw new Error(errorMessage);
       }
 
       return await response.json();

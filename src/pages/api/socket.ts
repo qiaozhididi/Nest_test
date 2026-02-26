@@ -5,6 +5,7 @@ import type { Socket as NetSocket } from 'net';
 import { connectToDatabase } from '@/lib/mongodb';
 import { encryptMessage } from '@/lib/encryption';
 import { ChatMessage } from '@/types/chat';
+import { verifyToken } from '@/lib/auth';
 
 interface SocketServer extends HTTPServer {
   io?: Server | undefined;
@@ -36,7 +37,7 @@ export default async function SocketHandler(req: NextApiRequest, res: NextApiRes
   
   try {
     const io = new Server(res.socket.server, {
-      path: '/api/socketio',
+      path: '/socket.io',
       addTrailingSlash: false,
       cors: {
         origin: '*', // Allow all for local network access
@@ -47,6 +48,20 @@ export default async function SocketHandler(req: NextApiRequest, res: NextApiRes
 
     const { db } = await connectToDatabase();
     const chatCollection = db.collection<ChatMessage>('chat_messages');
+
+    // 增加中间件验证 token
+    io.use((socket, next) => {
+      const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.split(' ')[1];
+      if (!token) {
+        return next(new Error('Authentication error: Token missing'));
+      }
+      const decoded = verifyToken(token);
+      if (!decoded) {
+        return next(new Error('Authentication error: Invalid token'));
+      }
+      (socket as any).userId = decoded.userId;
+      next();
+    });
 
     io.on('connection', (socket) => {
       console.log('Socket connected:', socket.id);
