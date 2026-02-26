@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { verifyPassword, generateToken } from '@/lib/auth';
 import { User } from '@/types/user';
+import { ErrorMessages } from '@/lib/errorMessages';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,7 +11,7 @@ export async function POST(request: NextRequest) {
     // 验证输入
     if (!username || !password) {
       return NextResponse.json(
-        { error: '用户名和密码都是必填项' },
+        { error: ErrorMessages.LOGIN_FIELDS_REQUIRED },
         { status: 400 }
       );
     }
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json(
-        { error: '用户不存在' },
+        { error: ErrorMessages.USER_NOT_FOUND },
         { status: 401 }
       );
     }
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     if (!isPasswordValid) {
       return NextResponse.json(
-        { error: '密码错误' },
+        { error: ErrorMessages.WRONG_PASSWORD },
         { status: 401 }
       );
     }
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('登录错误:', error);
     return NextResponse.json(
-      { error: '服务器内部错误' },
+      { error: ErrorMessages.SERVER_ERROR },
       { status: 500 }
     );
   }

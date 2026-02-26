@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { hashPassword } from '@/lib/auth';
 import { User } from '@/types/user';
+import { ErrorMessages } from '@/lib/errorMessages';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,14 +11,14 @@ export async function POST(request: NextRequest) {
     // 验证输入
     if (!username || !email || !password) {
       return NextResponse.json(
-        { error: '用户名、邮箱和密码都是必填项' },
+        { error: ErrorMessages.REGISTER_FIELDS_REQUIRED },
         { status: 400 }
       );
     }
 
     if (password.length < 6) {
       return NextResponse.json(
-        { error: '密码长度至少为6位' },
+        { error: ErrorMessages.PASSWORD_TOO_SHORT },
         { status: 400 }
       );
     }
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     if (existingUser) {
       return NextResponse.json(
-        { error: '用户名或邮箱已存在' },
+        { error: ErrorMessages.USER_ALREADY_EXISTS },
         { status: 409 }
       );
     }
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('注册错误:', error);
     return NextResponse.json(
-      { error: '服务器内部错误' },
+      { error: ErrorMessages.SERVER_ERROR },
       { status: 500 }
     );
   }

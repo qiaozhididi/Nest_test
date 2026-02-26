@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { authService, LoginRequest } from '@/services/authService'
+import { ErrorMessages } from '@/lib/errorMessages'
 
 interface LoginFormProps {
   onSwitchToRegister: () => void
@@ -35,7 +36,7 @@ export default function LoginForm({ onSwitchToRegister, onLoginSuccess }: LoginF
       
       onLoginSuccess(response.user)
     } catch (error: any) {
-      setError(error.message || '登录失败，请稍后重试')
+      setError(error.message || ErrorMessages.LOGIN_FAILED)
     } finally {
       setLoading(false)
     }

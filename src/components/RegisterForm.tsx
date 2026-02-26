@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { authService, RegisterRequest } from '@/services/authService'
+import { ErrorMessages } from '@/lib/errorMessages'
 
 interface RegisterFormProps {
   onSwitchToLogin: () => void
@@ -52,7 +53,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
         onSwitchToLogin()
       }, 2000)
     } catch (error: any) {
-      setError(error.message || '注册失败，请稍后重试')
+      setError(error.message || ErrorMessages.REGISTER_FAILED)
     } finally {
       setLoading(false)
     }

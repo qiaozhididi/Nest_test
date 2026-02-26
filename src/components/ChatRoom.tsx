@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import axios from 'axios';
 import { ChatMessage } from '@/types/chat';
+import { ErrorMessages } from '@/lib/errorMessages';
 
 interface User {
   id: string;
@@ -33,6 +34,7 @@ export default function ChatRoom({ user }: ChatRoomProps) {
         setMessages(response.data);
       } catch (error) {
         console.error('Error fetching chat history:', error);
+        alert(ErrorMessages.FETCH_HISTORY_FAILED);
       }
     };
 
@@ -40,31 +42,44 @@ export default function ChatRoom({ user }: ChatRoomProps) {
 
     // Initialize socket connection
     const initSocket = async () => {
-      // Trigger the socket initialization on the server
-      await fetch('/api/socket');
+      try {
+        // Trigger the socket initialization on the server
+        await fetch('/api/socket');
 
-      const newSocket = io({
-        path: '/api/socket',
-        addTrailingSlash: false,
-      });
+        const newSocket = io({
+          path: '/api/socketio',
+          addTrailingSlash: false,
+          transports: ['polling', 'websocket'],
+        });
 
-      newSocket.on('connect', () => {
-        console.log('Connected to socket server');
-      });
+        newSocket.on('connect', () => {
+          console.log('Connected to socket server, ID:', newSocket.id);
+        });
 
-      newSocket.on('receive_message', (message: ChatMessage) => {
-        setMessages((prev) => [...prev, message]);
-      });
+        newSocket.on('connect_error', (error) => {
+          console.error('Socket connection error:', error);
+        });
 
-      setSocket(newSocket);
+        newSocket.on('receive_message', (message: ChatMessage) => {
+          setMessages((prev) => [...prev, message]);
+        });
+
+        setSocket(newSocket);
+        return newSocket;
+      } catch (error) {
+        console.error('Failed to initialize socket:', error);
+      }
     };
 
-    initSocket();
+    const socketPromise = initSocket();
 
     return () => {
-      if (socket) {
-        socket.disconnect();
-      }
+      socketPromise.then(s => {
+        if (s) {
+          console.log('Disconnecting socket:', s.id);
+          s.disconnect();
+        }
+      });
     };
   }, []);
 
@@ -82,7 +97,12 @@ export default function ChatRoom({ user }: ChatRoomProps) {
       content: inputValue,
     };
 
-    socket.emit('send_message', messageData);
+    socket.emit('send_message', messageData, (response: any) => {
+      if (response?.error) {
+        console.error('Send message error:', response.error);
+        alert(ErrorMessages.SEND_MESSAGE_FAILED);
+      }
+    });
     setInputValue('');
   };
 

@@ -1,3 +1,5 @@
+import { ErrorMessages } from './errorMessages';
+
 // 使用原生 fetch API 实现类似 alova 的功能
 class AlovaLikeClient {
   private baseURL: string;
@@ -57,8 +59,16 @@ class AlovaLikeClient {
       return await response.json();
     } catch (error: any) {
       clearTimeout(timeoutId);
-      console.error('请求错误:', error);
-      throw error;
+      
+      let finalError = error;
+      if (error.name === 'AbortError') {
+        finalError = new Error(ErrorMessages.TIMEOUT);
+      } else if (!window.navigator.onLine) {
+        finalError = new Error(ErrorMessages.NETWORK_ERROR);
+      }
+      
+      console.error('请求错误:', finalError);
+      throw finalError;
     }
   }
 
@@ -95,7 +105,7 @@ class AlovaLikeClient {
 
 // 创建 API 客户端实例
 const apiClient = new AlovaLikeClient({
-  baseURL: process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000',
+  baseURL: '', // 使用相对路径以支持 3001 端口
   timeout: 10000, // 10秒超时
   headers: {
     'Content-Type': 'application/json',
