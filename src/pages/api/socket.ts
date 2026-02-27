@@ -20,8 +20,8 @@ interface NextApiResponseWithSocket extends NextApiResponse {
 }
 
 let isInitializing = false;
-// 存储在线用户: Map<socketId, {username, ip}>
-const onlineUsers = new Map<string, { username: string; ip: string }>();
+// 存储在线用户: Map<socketId, {username, ip, userId}>
+const onlineUsers = new Map<string, { username: string; ip: string; userId: string }>();
 
 export default async function SocketHandler(req: NextApiRequest, res: NextApiResponseWithSocket) {
   if (res.socket.server.io) {
@@ -76,14 +76,68 @@ export default async function SocketHandler(req: NextApiRequest, res: NextApiRes
                        'Unknown';
 
       // 监听用户身份识别
-      socket.on('identify', (data: { username: string }) => {
+      socket.on('identify', (data: { username: string; userId: string }) => {
         onlineUsers.set(socket.id, { 
           username: data.username, 
+          userId: data.userId,
           ip: clientIp.replace('::ffff:', '') // 处理 IPv6 映射的 IPv4
         });
         // 广播最新的在线用户列表
         io.emit('update_online_users', Array.from(onlineUsers.values()));
         console.log(`User identified: ${data.username} (${clientIp})`);
+      });
+
+      // 监听私聊消息
+      socket.on('send_private_message', async (data: { 
+        toUserId: string; 
+        content: string;
+        senderId: string;
+        senderName: string;
+      }, callback?: Function) => {
+        console.log('Private message event received:', data);
+        
+        if (!data.content || !data.toUserId) {
+          if (callback) callback({ error: 'Invalid private message data' });
+          return;
+        }
+
+        const encryptedContent = encryptMessage(data.content);
+        const newMessage = {
+          senderId: data.senderId,
+          senderName: data.senderName,
+          toUserId: data.toUserId,
+          content: encryptedContent,
+          timestamp: new Date(),
+          isPrivate: true
+        };
+
+        try {
+          // 保存私聊消息到数据库
+          await chatCollection.insertOne(newMessage as any);
+
+          // 寻找目标用户的所有在线 socket 并推送
+          let found = false;
+          Array.from(onlineUsers.entries()).forEach(([sid, info]) => {
+            if (info.userId === data.toUserId) {
+              io.to(sid).emit('receive_private_message', {
+                ...newMessage,
+                content: data.content // 发送明文
+              });
+              found = true;
+            }
+          });
+
+          // 也发给发送者自己，以便在多个设备同步
+          socket.emit('receive_private_message', {
+            ...newMessage,
+            content: data.content
+          });
+
+          if (callback) callback({ success: true, delivered: found });
+        } catch (error) {
+          console.error('Failed to save private message:', error);
+          if (callback) callback({ error: 'Failed to save message' });
+        }
       });
 
       socket.on('send_message', async (data: { senderId: string; senderName: string; content: string }, callback?: Function) => {

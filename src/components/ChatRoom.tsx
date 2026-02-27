@@ -12,13 +12,20 @@ interface User {
   email: string;
 }
 
+interface OnlineUser {
+  username: string;
+  ip: string;
+  userId: string;
+}
+
 interface ChatRoomProps {
   user: User;
 }
 
 export default function ChatRoom({ user }: ChatRoomProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [onlineUsers, setOnlineUsers] = useState<{ username: string; ip: string }[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+  const [selectedUser, setSelectedUser] = useState<OnlineUser | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [socket, setSocket] = useState<Socket | null>(null);
   const [hasMore, setHasMore] = useState(true);
@@ -63,7 +70,11 @@ export default function ChatRoom({ user }: ChatRoomProps) {
     // Fetch initial chat history
     const fetchHistory = async () => {
       try {
-        const response = await axios.get('/api/ChatHistory?limit=50');
+        const url = selectedUser 
+          ? `/api/ChatHistory?limit=50&toUserId=${selectedUser.userId}&fromUserId=${user.id}`
+          : '/api/ChatHistory?limit=50';
+          
+        const response = await axios.get(url);
         setMessages(response.data.messages);
         setHasMore(response.data.hasMore);
         // 初始加载完成后滚动到底部
@@ -77,7 +88,9 @@ export default function ChatRoom({ user }: ChatRoomProps) {
     };
 
     fetchHistory();
+  }, [selectedUser]); // 当切换用户时重新加载历史记录
 
+  useEffect(() => {
     // Initialize socket connection
     const initSocket = async () => {
       try {
@@ -105,7 +118,7 @@ export default function ChatRoom({ user }: ChatRoomProps) {
         newSocket.on('connect', () => {
           console.log('Connected to socket server, ID:', newSocket.id);
           // 连接成功后，发送身份信息
-          newSocket.emit('identify', { username: user.username });
+          newSocket.emit('identify', { username: user.username, userId: user.id });
         });
 
         newSocket.on('connect_error', (error) => {
@@ -117,17 +130,37 @@ export default function ChatRoom({ user }: ChatRoomProps) {
 
         newSocket.on('receive_message', (message: ChatMessage) => {
           console.log('Received real-time message:', message);
-          setMessages((prev) => {
-            // 防止重复消息
-            const exists = prev.some(m => m._id === message._id && m._id !== undefined);
-            if (exists) return prev;
-            return [...prev, message];
-          });
-          // 收到新消息时滚动到底部
-          setTimeout(() => scrollToBottom(), 50);
+          // 仅当当前不在私聊模式时才添加公共消息
+          if (!selectedUser) {
+            setMessages((prev) => {
+              const exists = prev.some(m => m._id === message._id && m._id !== undefined);
+              if (exists) return prev;
+              return [...prev, message];
+            });
+            setTimeout(() => scrollToBottom(), 50);
+          }
         });
 
-        newSocket.on('update_online_users', (users: { username: string; ip: string }[]) => {
+        newSocket.on('receive_private_message', (message: ChatMessage & { toUserId: string }) => {
+          console.log('Received real-time private message:', message);
+          // 仅当当前正与发送者私聊，或者自己是发送者（多端同步）时才添加
+          const isFromSelectedUser = selectedUser && message.senderId === selectedUser.userId;
+          const isFromMeToSelectedUser = selectedUser && message.senderId === user.id && message.toUserId === selectedUser.userId;
+          
+          if (isFromSelectedUser || isFromMeToSelectedUser) {
+            setMessages((prev) => {
+              const exists = prev.some(m => m._id === message._id && m._id !== undefined);
+              if (exists) return prev;
+              return [...prev, message];
+            });
+            setTimeout(() => scrollToBottom(), 50);
+          } else {
+            // 如果不在当前私聊窗口，可以增加未读提醒逻辑（后续可扩展）
+            console.log('Private message received but not in active chat:', message.senderName);
+          }
+        });
+
+        newSocket.on('update_online_users', (users: OnlineUser[]) => {
           console.log('Online users updated:', users);
           setOnlineUsers(users);
         });
@@ -146,11 +179,13 @@ export default function ChatRoom({ user }: ChatRoomProps) {
         if (s) {
           console.log('Disconnecting socket:', s.id);
           s.off('receive_message');
+          s.off('receive_private_message');
+          s.off('update_online_users');
           s.disconnect();
         }
       });
     };
-  }, []);
+  }, [selectedUser]); // 依赖 selectedUser 确保监听器逻辑正确
 
   useEffect(() => {
     // scrollToBottom(); // 移除这个 useEffect 中的滚动，改为按需滚动
@@ -207,13 +242,20 @@ export default function ChatRoom({ user }: ChatRoomProps) {
     e.preventDefault();
     if (!inputValue.trim() || !socket) return;
 
-    const messageData = {
+    const messageData = selectedUser ? {
+      senderId: user.id,
+      senderName: user.username,
+      toUserId: selectedUser.userId,
+      content: inputValue,
+    } : {
       senderId: user.id,
       senderName: user.username,
       content: inputValue,
     };
 
-    socket.emit('send_message', messageData, (response: any) => {
+    const eventName = selectedUser ? 'send_private_message' : 'send_message';
+
+    socket.emit(eventName, messageData, (response: any) => {
       if (response?.error) {
         console.error('Send message error:', response.error);
         alert(ErrorMessages.SEND_MESSAGE_FAILED);
@@ -229,34 +271,72 @@ export default function ChatRoom({ user }: ChatRoomProps) {
     <div className="flex flex-col md:flex-row h-[600px] bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
       {/* 在线用户列表 - 侧边栏 */}
       <div className="w-full md:w-64 bg-gray-50 border-b md:border-b-0 md:border-r border-gray-200 flex flex-col">
-        <div className="p-4 border-b border-gray-200 bg-gray-100">
+        <div className="p-4 border-b border-gray-200 bg-gray-100 flex justify-between items-center">
           <h3 className="text-sm font-bold text-gray-700 flex items-center">
             <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
             在线用户 ({onlineUsers.length})
           </h3>
+          {selectedUser && (
+            <button 
+              onClick={() => setSelectedUser(null)}
+              className="text-[10px] text-indigo-600 hover:text-indigo-800 font-medium"
+            >
+              返回公共
+            </button>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {onlineUsers.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center mt-4">暂无用户在线</p>
+          <div 
+            onClick={() => setSelectedUser(null)}
+            className={`flex flex-col p-2 cursor-pointer rounded transition-colors border ${
+              !selectedUser ? 'bg-indigo-50 border-indigo-200' : 'hover:bg-white border-transparent hover:border-gray-200'
+            }`}
+          >
+            <span className="text-sm font-bold text-indigo-600">公共聊天室</span>
+            <span className="text-[10px] text-gray-400">全员可见</span>
+          </div>
+          
+          <div className="my-2 border-t border-gray-200"></div>
+
+          {onlineUsers.filter(u => u.userId !== user.id).length === 0 ? (
+            <p className="text-xs text-gray-400 text-center mt-4">暂无其他在线用户</p>
           ) : (
-            onlineUsers.map((onlineUser, idx) => (
-              <div 
-                key={`${onlineUser.username}-${idx}`}
-                className="flex flex-col p-2 hover:bg-white rounded transition-colors border border-transparent hover:border-gray-200"
-              >
-                <span className="text-sm font-medium text-gray-800">{onlineUser.username}</span>
-                <span className="text-[10px] text-gray-400 font-mono">{onlineUser.ip}</span>
-              </div>
-            ))
+            onlineUsers
+              .filter(u => u.userId !== user.id) // 过滤掉自己
+              .map((onlineUser, idx) => (
+                <div 
+                  key={`${onlineUser.userId}-${idx}`}
+                  onClick={() => setSelectedUser(onlineUser)}
+                  className={`flex flex-col p-2 cursor-pointer rounded transition-colors border ${
+                    selectedUser?.userId === onlineUser.userId 
+                      ? 'bg-indigo-50 border-indigo-200' 
+                      : 'hover:bg-white border-transparent hover:border-gray-200'
+                  }`}
+                >
+                  <span className="text-sm font-medium text-gray-800">{onlineUser.username}</span>
+                  <span className="text-[10px] text-gray-400 font-mono">{onlineUser.ip}</span>
+                </div>
+              ))
           )}
         </div>
       </div>
 
       {/* 聊天主界面 */}
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="p-4 border-b border-gray-200 bg-gray-50">
-          <h2 className="text-lg font-semibold text-gray-800">公共聊天室</h2>
-          <p className="text-xs text-gray-500">局域网内所有用户均可参与</p>
+        <div className="p-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-800">
+              {selectedUser ? `与 ${selectedUser.username} 私聊中` : '公共聊天室'}
+            </h2>
+            <p className="text-xs text-gray-500">
+              {selectedUser ? '只有你们双方可见' : '局域网内所有用户均可参与'}
+            </p>
+          </div>
+          {selectedUser && (
+            <span className="bg-indigo-100 text-indigo-700 text-[10px] px-2 py-1 rounded-full font-bold uppercase">
+              私密
+            </span>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white" ref={scrollContainerRef} onScroll={handleScroll}>
@@ -301,7 +381,7 @@ export default function ChatRoom({ user }: ChatRoomProps) {
                   className={`max-w-[80%] px-4 py-2 rounded-2xl text-sm ${
                     msg.senderId === user.id
                       ? 'bg-indigo-600 text-white rounded-tr-none'
-                      : 'bg-gray-100 text-gray-800 rounded-tl-none'
+                      : (selectedUser ? 'bg-indigo-50 text-indigo-900 rounded-tl-none border border-indigo-100' : 'bg-gray-100 text-gray-800 rounded-tl-none')
                   }`}
                 >
                   {msg.content}
