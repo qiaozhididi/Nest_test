@@ -20,6 +20,8 @@ interface NextApiResponseWithSocket extends NextApiResponse {
 }
 
 let isInitializing = false;
+// 存储在线用户: Map<socketId, {username, ip}>
+const onlineUsers = new Map<string, { username: string; ip: string }>();
 
 export default async function SocketHandler(req: NextApiRequest, res: NextApiResponseWithSocket) {
   if (res.socket.server.io) {
@@ -60,11 +62,29 @@ export default async function SocketHandler(req: NextApiRequest, res: NextApiRes
         return next(new Error('Authentication error: Invalid token'));
       }
       (socket as any).userId = decoded.userId;
+      // 这里的 username 需要从用户信息中获取，或者通过 handshake.auth 传递
+      // 我们暂且允许客户端在连接后发送一个 identify 事件来绑定用户名
       next();
     });
 
     io.on('connection', (socket) => {
       console.log('Socket connected:', socket.id);
+
+      // 获取客户端真实 IP
+      const clientIp = (socket.handshake.headers['x-forwarded-for'] as string) || 
+                       socket.handshake.address || 
+                       'Unknown';
+
+      // 监听用户身份识别
+      socket.on('identify', (data: { username: string }) => {
+        onlineUsers.set(socket.id, { 
+          username: data.username, 
+          ip: clientIp.replace('::ffff:', '') // 处理 IPv6 映射的 IPv4
+        });
+        // 广播最新的在线用户列表
+        io.emit('update_online_users', Array.from(onlineUsers.values()));
+        console.log(`User identified: ${data.username} (${clientIp})`);
+      });
 
       socket.on('send_message', async (data: { senderId: string; senderName: string; content: string }, callback?: Function) => {
         if (!data.content || !data.senderId) {
@@ -95,7 +115,13 @@ export default async function SocketHandler(req: NextApiRequest, res: NextApiRes
       });
 
       socket.on('disconnect', () => {
-        console.log('Socket disconnected:', socket.id);
+        const user = onlineUsers.get(socket.id);
+        if (user) {
+          onlineUsers.delete(socket.id);
+          // 广播更新后的用户列表
+          io.emit('update_online_users', Array.from(onlineUsers.values()));
+          console.log(`User disconnected: ${user.username} (${socket.id})`);
+        }
       });
     });
   } catch (error) {

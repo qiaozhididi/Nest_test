@@ -18,6 +18,7 @@ interface ChatRoomProps {
 
 export default function ChatRoom({ user }: ChatRoomProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<{ username: string; ip: string }[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [socket, setSocket] = useState<Socket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -97,6 +98,8 @@ export default function ChatRoom({ user }: ChatRoomProps) {
 
         newSocket.on('connect', () => {
           console.log('Connected to socket server, ID:', newSocket.id);
+          // 连接成功后，发送身份信息
+          newSocket.emit('identify', { username: user.username });
         });
 
         newSocket.on('connect_error', (error) => {
@@ -114,6 +117,11 @@ export default function ChatRoom({ user }: ChatRoomProps) {
             if (exists) return prev;
             return [...prev, message];
           });
+        });
+
+        newSocket.on('update_online_users', (users: { username: string; ip: string }[]) => {
+          console.log('Online users updated:', users);
+          setOnlineUsers(users);
         });
 
         setSocket(newSocket);
@@ -160,14 +168,41 @@ export default function ChatRoom({ user }: ChatRoomProps) {
   };
 
   return (
-    <div className="flex flex-col h-[500px] bg-white border border-gray-200 rounded-lg shadow-sm">
-      <div className="p-4 border-b border-gray-200 bg-gray-50 rounded-t-lg">
-        <h2 className="text-lg font-semibold text-gray-800">公共聊天室</h2>
-        <p className="text-xs text-gray-500">局域网内所有用户均可参与</p>
+    <div className="flex flex-col md:flex-row h-[600px] bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+      {/* 在线用户列表 - 侧边栏 */}
+      <div className="w-full md:w-64 bg-gray-50 border-b md:border-b-0 md:border-r border-gray-200 flex flex-col">
+        <div className="p-4 border-b border-gray-200 bg-gray-100">
+          <h3 className="text-sm font-bold text-gray-700 flex items-center">
+            <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+            在线用户 ({onlineUsers.length})
+          </h3>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2 space-y-1">
+          {onlineUsers.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center mt-4">暂无用户在线</p>
+          ) : (
+            onlineUsers.map((onlineUser, idx) => (
+              <div 
+                key={`${onlineUser.username}-${idx}`}
+                className="flex flex-col p-2 hover:bg-white rounded transition-colors border border-transparent hover:border-gray-200"
+              >
+                <span className="text-sm font-medium text-gray-800">{onlineUser.username}</span>
+                <span className="text-[10px] text-gray-400 font-mono">{onlineUser.ip}</span>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg, index) => {
+      {/* 聊天主界面 */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <div className="p-4 border-b border-gray-200 bg-gray-50">
+          <h2 className="text-lg font-semibold text-gray-800">公共聊天室</h2>
+          <p className="text-xs text-gray-500">局域网内所有用户均可参与</p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white">
+          {messages.map((msg, index) => {
           const showDateSeparator =
             index === 0 || !isSameDay(messages[index - 1].timestamp, msg.timestamp);
 
@@ -227,5 +262,6 @@ export default function ChatRoom({ user }: ChatRoomProps) {
         </div>
       </form>
     </div>
+  </div>
   );
 }
