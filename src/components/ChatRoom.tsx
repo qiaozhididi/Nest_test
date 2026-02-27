@@ -21,10 +21,14 @@ export default function ChatRoom({ user }: ChatRoomProps) {
   const [onlineUsers, setOnlineUsers] = useState<{ username: string; ip: string }[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const lastScrollHeightRef = useRef<number>(0);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
   // 格式化日期为：2024年3月14日 星期四
@@ -59,11 +63,13 @@ export default function ChatRoom({ user }: ChatRoomProps) {
     // Fetch initial chat history
     const fetchHistory = async () => {
       try {
-        const response = await axios.get('/api/ChatHistory');
-        setMessages(response.data);
+        const response = await axios.get('/api/ChatHistory?limit=50');
+        setMessages(response.data.messages);
+        setHasMore(response.data.hasMore);
+        // 初始加载完成后滚动到底部
+        setTimeout(() => scrollToBottom('auto'), 100);
       } catch (error: any) {
         console.error('Error fetching chat history:', error);
-        // 如果是 401 错误，可能是 token 过期或无效，不在这里弹窗，由 apiClient 处理
         if (error.response?.status !== 401) {
           alert(ErrorMessages.FETCH_HISTORY_FAILED);
         }
@@ -117,6 +123,8 @@ export default function ChatRoom({ user }: ChatRoomProps) {
             if (exists) return prev;
             return [...prev, message];
           });
+          // 收到新消息时滚动到底部
+          setTimeout(() => scrollToBottom(), 50);
         });
 
         newSocket.on('update_online_users', (users: { username: string; ip: string }[]) => {
@@ -145,8 +153,55 @@ export default function ChatRoom({ user }: ChatRoomProps) {
   }, []);
 
   useEffect(() => {
-    scrollToBottom();
+    // scrollToBottom(); // 移除这个 useEffect 中的滚动，改为按需滚动
   }, [messages]);
+
+  // 加载更多历史记录
+  const loadMoreMessages = async () => {
+    if (isLoadingMore || !hasMore || messages.length === 0) return;
+
+    setIsLoadingMore(true);
+    // 记录当前滚动容器的高度
+    if (scrollContainerRef.current) {
+      lastScrollHeightRef.current = scrollContainerRef.current.scrollHeight;
+    }
+
+    try {
+      const firstMessageTimestamp = messages[0].timestamp;
+      const response = await axios.get(`/api/ChatHistory?limit=50&before=${firstMessageTimestamp}`);
+      
+      const newMessages = response.data.messages;
+      setHasMore(response.data.hasMore);
+      
+      if (newMessages.length > 0) {
+        setMessages(prev => [...newMessages, ...prev]);
+      }
+    } catch (error) {
+      console.error('Error loading more messages:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  // 处理滚动事件
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop } = e.currentTarget;
+    if (scrollTop === 0 && hasMore && !isLoadingMore) {
+      loadMoreMessages();
+    }
+  };
+
+  // 当加载更多消息后，保持滚动位置
+  useEffect(() => {
+    if (isLoadingMore) return;
+    
+    if (scrollContainerRef.current && lastScrollHeightRef.current > 0) {
+      const newScrollHeight = scrollContainerRef.current.scrollHeight;
+      const heightDifference = newScrollHeight - lastScrollHeightRef.current;
+      scrollContainerRef.current.scrollTop = heightDifference;
+      lastScrollHeightRef.current = 0; // 重置
+    }
+  }, [messages, isLoadingMore]);
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,6 +217,9 @@ export default function ChatRoom({ user }: ChatRoomProps) {
       if (response?.error) {
         console.error('Send message error:', response.error);
         alert(ErrorMessages.SEND_MESSAGE_FAILED);
+      } else {
+        // 自己发送消息后也滚动到底部
+        setTimeout(() => scrollToBottom(), 50);
       }
     });
     setInputValue('');
@@ -201,7 +259,18 @@ export default function ChatRoom({ user }: ChatRoomProps) {
           <p className="text-xs text-gray-500">局域网内所有用户均可参与</p>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white" ref={scrollContainerRef} onScroll={handleScroll}>
+          {isLoadingMore && (
+            <div className="flex justify-center py-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+              <span className="ml-2 text-xs text-gray-500">正在加载历史消息...</span>
+            </div>
+          )}
+          {!hasMore && messages.length > 0 && (
+            <div className="text-center py-2 text-xs text-gray-400">
+              没有更多消息了
+            </div>
+          )}
           {messages.map((msg, index) => {
           const showDateSeparator =
             index === 0 || !isSameDay(messages[index - 1].timestamp, msg.timestamp);
