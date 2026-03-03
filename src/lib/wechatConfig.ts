@@ -27,10 +27,33 @@ export const wechatConfig = {
   scope: 'snsapi_login',
   
   // 授权状态标识 (用于防 CSRF 攻击)
-  state: 'wechat_login_state_random_string'
+  state: 'wechat_login_state_random_string',
+
+  // --- 微信 PC 4.0+ 快捷登录相关 (基于微信浏览器) ---
+  // 微信公众号/服务号 AppID (用于微信内置浏览器授权)
+  mpAppId: process.env.WECHAT_MP_APP_ID || 'YOUR_WECHAT_MP_APP_ID',
+  
+  // 微信浏览器授权端点
+  mpAuthEndpoint: 'https://open.weixin.qq.com/connect/oauth2/authorize',
+  
+  // 快捷登录作用域 (snsapi_base 为静默授权，snsapi_userinfo 需要确认)
+  mpScope: 'snsapi_userinfo'
 };
 
-export const getWechatAuthUrl = () => {
+export const getWechatAuthUrl = (isPCShortcut = false) => {
+  if (isPCShortcut) {
+    // 微信 PC 端内置浏览器快捷登录 (OAuth2)
+    const params = new URLSearchParams({
+      appid: wechatConfig.mpAppId,
+      redirect_uri: wechatConfig.redirectUri,
+      response_type: 'code',
+      scope: wechatConfig.mpScope,
+      state: wechatConfig.state,
+    });
+    return `${wechatConfig.mpAuthEndpoint}?${params.toString()}#wechat_redirect`;
+  }
+
+  // 微信网页扫码登录 (QRConnect)
   const params = new URLSearchParams({
     appid: wechatConfig.appId,
     redirect_uri: wechatConfig.redirectUri,

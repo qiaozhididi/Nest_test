@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { authService, LoginRequest } from '@/services/authService'
 import { ErrorMessages } from '@/lib/errorMessages'
 
@@ -53,6 +53,19 @@ export default function LoginForm({ onSwitchToRegister, onLoginSuccess }: LoginF
     // 跳转到微信授权 API
     window.location.href = '/api/auth/wechat';
   };
+
+  const handleWechatShortcutLogin = () => {
+    // 跳转到微信快捷登录授权 API
+    window.location.href = '/api/auth/wechat?type=shortcut';
+  };
+
+  // 检测是否在微信浏览器中
+  const [isWechatBrowser, setIsWechatBrowser] = useState(false);
+  useEffect(() => {
+    const ua = window.navigator.userAgent.toLowerCase();
+    const isWechat = ua.indexOf('micromessenger') !== -1;
+    setIsWechatBrowser(isWechat);
+  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
@@ -126,7 +139,19 @@ export default function LoginForm({ onSwitchToRegister, onLoginSuccess }: LoginF
               </div>
             </div>
 
-            <div className="mt-6">
+            <div className="mt-6 space-y-3">
+              {isWechatBrowser && (
+                <button
+                  onClick={handleWechatShortcutLogin}
+                  className="w-full flex justify-center items-center py-2 px-4 border border-green-500 rounded-md shadow-sm bg-green-50 text-sm font-medium text-green-700 hover:bg-green-100"
+                >
+                  <svg className="w-5 h-5 mr-2 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8.22 3.32C4.12 3.32 0.8 6.13 0.8 9.58c0 1.94 1.05 3.66 2.7 4.87l-.68 2.05 2.38-1.19c.64.19 1.32.3 2.02.3 4.1 0 7.42-2.81 7.42-6.26S12.32 3.32 8.22 3.32zm7.42 6.26c-.05 0-.11 0-.16.01.03.22.05.44.05.67 0 4.12-3.32 7.46-7.42 7.46-.72 0-1.42-.1-2.07-.29L3.86 19.3l2.67-1.33c.52.12 1.06.18 1.61.18 4.1 0 7.42-2.81 7.42-6.26 0-.79-.17-1.54-.48-2.21.36-.07.74-.1 1.13-.1 4.1 0 7.42 2.81 7.42 6.26 0 1.94-1.05 3.66-2.7 4.87l.68 2.05-2.38-1.19c-.64.19-1.32.3-2.02.3-4.1 0-7.42-2.81-7.42-6.26 0-.7-.11-1.36-.31-1.98z"/>
+                  </svg>
+                  微信快捷登录
+                </button>
+              )}
+              
               <button
                 onClick={handleWechatLogin}
                 className="w-full flex justify-center items-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
